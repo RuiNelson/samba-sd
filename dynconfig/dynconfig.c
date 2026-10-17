@@ -107,3 +107,101 @@ DEFINE_DYN_CONFIG_PARAM(NTP_SIGND_SOCKET_DIR)
 DEFINE_DYN_CONFIG_PARAM(PYTHONDIR)
 DEFINE_DYN_CONFIG_PARAM(PYTHONARCHDIR)
 DEFINE_DYN_CONFIG_PARAM(SCRIPTSBINDIR)
+
+/* SambaDancer's relocatable macOS distribution paths.
+ * Appended to Samba's dynconfig/dynconfig.c at build time.
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+#ifdef __APPLE__
+#include <dlfcn.h>
+#include <limits.h>
+#include <pwd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+static void sambadancer_set_path(
+    const char *base,
+    const char *suffix,
+    const char *(*setter)(const char *))
+{
+    char path[PATH_MAX];
+    int length = snprintf(path, sizeof(path), "%s/%s", base, suffix);
+    if (length > 0 && (size_t)length < sizeof(path)) {
+        setter(path);
+    }
+}
+
+static void __attribute__((constructor)) sambadancer_paths(void)
+{
+    Dl_info image;
+    char root[PATH_MAX];
+    char candidate[PATH_MAX];
+    char settings[PATH_MAX];
+    struct passwd *account;
+    const char *home;
+    const char *override;
+    char *separator;
+    int length;
+
+    /* Locate the library itself, independent of cwd, PATH, and app location. */
+    if (dladdr((const void *)&get_dyn_LIBDIR, &image) == 0 ||
+        realpath(image.dli_fname, root) == NULL) {
+        return;
+    }
+    for (;;) {
+        separator = strrchr(root, '/');
+        if (separator == NULL || separator == root) {
+            return;
+        }
+        *separator = '\0';
+        length = snprintf(candidate, sizeof(candidate), "%s/sbin/smbd", root);
+        if (length > 0 && (size_t)length < sizeof(candidate) &&
+            access(candidate, X_OK) == 0) {
+            break;
+        }
+    }
+
+    sambadancer_set_path(root, "bin", set_dyn_BINDIR);
+    sambadancer_set_path(root, "sbin", set_dyn_SBINDIR);
+    sambadancer_set_path(root, "sbin", set_dyn_SCRIPTSBINDIR);
+    sambadancer_set_path(root, "lib", set_dyn_LIBDIR);
+    sambadancer_set_path(root, "lib", set_dyn_MODULESDIR);
+    sambadancer_set_path(root, "libexec/samba", set_dyn_SAMBA_LIBEXECDIR);
+    sambadancer_set_path(root, "share", set_dyn_DATADIR);
+    sambadancer_set_path(root, "share/samba", set_dyn_SAMBA_DATADIR);
+    sambadancer_set_path(root, "share/codepages", set_dyn_CODEPAGEDIR);
+    sambadancer_set_path(root, "share/locale", set_dyn_LOCALEDIR);
+
+    /* The application states its storage directory explicitly. A server run
+     * as root by the privileged helper, and the samba-dcerpcd it spawns, must
+     * use the invoking user's directory rather than root's home. Absent the
+     * variable, fall back to the process owner's home. */
+    override = getenv("SAMBADANCER_STORAGE");
+    if (override != NULL && override[0] == '/' && strlen(override) < sizeof(settings)) {
+        snprintf(settings, sizeof(settings), "%s", override);
+    } else {
+        account = getpwuid(getuid());
+        home = account != NULL ? account->pw_dir : NULL;
+        if (home == NULL || home[0] != '/') {
+            return;
+        }
+        length = snprintf(settings, sizeof(settings), "%s/.config/SambaDancer", home);
+        if (length <= 0 || (size_t)length >= sizeof(settings)) {
+            return;
+        }
+    }
+    sambadancer_set_path(settings, "smb.conf", set_dyn_CONFIGFILE);
+    sambadancer_set_path(settings, "lmhosts", set_dyn_LMHOSTSFILE);
+    sambadancer_set_path(settings, "logs", set_dyn_LOGFILEBASE);
+    sambadancer_set_path(settings, "private", set_dyn_PRIVATE_DIR);
+    sambadancer_set_path(settings, "private/smbpasswd", set_dyn_SMB_PASSWD_FILE);
+    sambadancer_set_path(settings, "state", set_dyn_STATEDIR);
+    sambadancer_set_path(settings, "cache", set_dyn_CACHEDIR);
+    sambadancer_set_path(settings, "run", set_dyn_LOCKDIR);
+    sambadancer_set_path(settings, "run", set_dyn_PIDDIR);
+    sambadancer_set_path(settings, "run/ncalrpc", set_dyn_NCALRPCDIR);
+    sambadancer_set_path(settings, "run/nmbd", set_dyn_NMBDSOCKETDIR);
+    sambadancer_set_path(settings, "run/winbindd", set_dyn_WINBINDD_SOCKET_DIR);
+}
+#endif
