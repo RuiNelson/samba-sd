@@ -35,6 +35,53 @@
 #define TEVENT_DEPRECATED 1
 #include "ldb_private.h"
 #include "ldb.h"
+/* Relocate bundled LDB modules independently of the caller's environment.
+ * Inserted after the includes in Samba's lib/ldb/common/ldb.c.
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+#ifdef __APPLE__
+#include <dlfcn.h>
+#include <limits.h>
+#include <unistd.h>
+
+static char sambadancer_ldb_path[PATH_MAX];
+
+static void __attribute__((constructor)) sambadancer_ldb_paths(void)
+{
+    Dl_info image;
+    char root[PATH_MAX];
+    char candidate[PATH_MAX];
+    char *separator;
+    int length;
+
+    if (dladdr((const void *)&ldb_init, &image) == 0 ||
+        realpath(image.dli_fname, root) == NULL) {
+        return;
+    }
+    for (;;) {
+        separator = strrchr(root, '/');
+        if (separator == NULL || separator == root) {
+            return;
+        }
+        *separator = '\0';
+        length = snprintf(candidate, sizeof(candidate), "%s/sbin/smbd", root);
+        if (length > 0 && (size_t)length < sizeof(candidate) &&
+            access(candidate, X_OK) == 0) {
+            break;
+        }
+    }
+    length = snprintf(sambadancer_ldb_path, sizeof(sambadancer_ldb_path), "%s/lib/ldb", root);
+    if (length <= 0 || (size_t)length >= sizeof(sambadancer_ldb_path)) {
+        sambadancer_ldb_path[0] = '\0';
+    }
+}
+
+#define SAMBADANCER_LDB_MODULESDIR \
+    (sambadancer_ldb_path[0] != '\0' ? sambadancer_ldb_path : LDB_MODULESDIR)
+#else
+#define SAMBADANCER_LDB_MODULESDIR LDB_MODULESDIR
+#endif
+
 
 static int ldb_context_destructor(void *ptr)
 {
@@ -94,7 +141,7 @@ struct ldb_context *ldb_init(TALLOC_CTX *mem_ctx, struct tevent_context *ev_ctx)
 	const char *modules_path = getenv("LDB_MODULES_PATH");
 
 	if (modules_path == NULL) {
-		modules_path = LDB_MODULESDIR;
+		modules_path = SAMBADANCER_LDB_MODULESDIR;
 	}
 
 	ret = ldb_modules_load(modules_path, LDB_VERSION);
@@ -129,7 +176,7 @@ struct ldb_context *ldb_init(TALLOC_CTX *mem_ctx, struct tevent_context *ev_ctx)
 
 	ldb_set_utf8_default(ldb);
 	ldb_set_create_perms(ldb, 0666);
-	ldb_set_modules_dir(ldb, LDB_MODULESDIR);
+	ldb_set_modules_dir(ldb, SAMBADANCER_LDB_MODULESDIR);
 	ldb_set_event_context(ldb, ev_ctx);
 	ret = ldb_register_extended_match_rules(ldb);
 	if (ret != LDB_SUCCESS) {
