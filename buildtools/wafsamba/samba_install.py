@@ -161,6 +161,13 @@ def apply_soname(self):
     if self.env.SONAME_ST and getattr(self, 'soname', ''):
         self.env.append_value('LINKFLAGS', self.env.SONAME_ST % self.soname)
         self.env.SONAME_ST = ''
+    elif (self.env.SONAME_ST and self.env.DEST_OS == 'darwin' and
+          not getattr(self, 'vnum', None)):
+        # Unlike ELF, Mach-O needs an install name on every library,
+        # otherwise dependents record its path in the build tree.
+        self.env.append_value('LINKFLAGS',
+                              self.env.SONAME_ST % self.link_task.outputs[0].name)
+        self.env.SONAME_ST = ''
 
 @feature('cshlib')
 @after('apply_implib')

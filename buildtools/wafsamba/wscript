@@ -584,6 +584,11 @@ def configure(conf):
         if not conf.CHECK_SHLIB_INTRASINC_NAME_FLAGS("Checking if flags %s are ok" % conf.env['SONAME_ST']):
             conf.env['SONAME_ST'] = save
 
+    # Mach-O records dependencies by install name, so use @rpath ones that
+    # resolve through the build and install RPATHs like ELF sonames do.
+    if conf.env.DEST_OS == 'darwin':
+        conf.env['SONAME_ST'] = '-Wl,-install_name,@rpath/%s'
+
     conf.CHECK_INLINE()
 
     # check for pkgconfig
