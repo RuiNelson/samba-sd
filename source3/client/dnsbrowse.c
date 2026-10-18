@@ -59,12 +59,8 @@ static void do_smb_resolve(struct mdns_smbsrv_result *browsesrv)
 {
 	DNSServiceRef mdns_conn_sdref = NULL;
 	int mdnsfd;
-	int fdsetsz;
 	int ret;
-	struct timeval tv;
 	DNSServiceErrorType err;
-
-	TALLOC_CTX * ctx = talloc_tos();
 
 	err = DNSServiceResolve(&mdns_conn_sdref, 0 /* flags */,
 		browsesrv->ifIndex,
@@ -91,7 +87,6 @@ static void do_smb_resolve(struct mdns_smbsrv_result *browsesrv)
 		}
 	}
 
-	TALLOC_FREE(fdset);
 	DNSServiceRefDeallocate(mdns_conn_sdref);
 }
 
