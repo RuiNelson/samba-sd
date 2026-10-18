@@ -161,7 +161,10 @@ static void dns_register_smbd_fde_handler(struct tevent_context *ev,
 		goto retry;
 	}
 
-	talloc_free(dns_state);
+	/*
+	 * The registration is complete. Keep the reference open: closing it
+	 * would withdraw the service again.
+	 */
 	return;
 
  retry:
