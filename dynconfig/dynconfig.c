@@ -210,12 +210,12 @@ static void __attribute__((constructor)) sambadancer_paths(void)
      * in Logs, and disposable runtime files in Caches. */
     account = getpwuid(getuid());
     home = account != NULL ? account->pw_dir : NULL;
-    sambadancer_directory("SAMBADANCER_STORAGE", home,
-                          "Library/Preferences/com.ruinelson.sambadancer", settings);
-    sambadancer_directory("SAMBADANCER_LOGS", home,
-                          "Library/Logs/SambaDancer", logs);
-    sambadancer_directory("SAMBADANCER_CACHES", home,
-                          "Library/Caches/SambaDancer", caches);
+    sambadancer_directory("CLICKSMB_STORAGE", home,
+                          "Library/Preferences/com.ruinelson.clicksmb", settings);
+    sambadancer_directory("CLICKSMB_LOGS", home,
+                          "Library/Logs/ClickSMB", logs);
+    sambadancer_directory("CLICKSMB_CACHES", home,
+                          "Library/Caches/ClickSMB", caches);
     if (settings[0] == '\0' || logs[0] == '\0' || caches[0] == '\0') {
         return;
     }
