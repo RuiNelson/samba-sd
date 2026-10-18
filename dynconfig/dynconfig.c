@@ -206,12 +206,12 @@ static void __attribute__((constructor)) sambadancer_paths(void)
      * as root by the privileged helper, and the samba-dcerpcd it spawns, must
      * use the invoking user's directories rather than root's home. Absent the
      * variables, fall back to the standard macOS locations in the process
-     * owner's home: configuration and credentials in Application Support, logs
+     * owner's home: configuration and credentials in Preferences, logs
      * in Logs, and disposable runtime files in Caches. */
     account = getpwuid(getuid());
     home = account != NULL ? account->pw_dir : NULL;
     sambadancer_directory("SAMBADANCER_STORAGE", home,
-                          "Library/Application Support/SambaDancer", settings);
+                          "Library/Preferences/com.ruinelson.sambadanser", settings);
     sambadancer_directory("SAMBADANCER_LOGS", home,
                           "Library/Logs/SambaDancer", logs);
     sambadancer_directory("SAMBADANCER_CACHES", home,
