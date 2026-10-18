@@ -211,7 +211,7 @@ static void __attribute__((constructor)) sambadancer_paths(void)
     account = getpwuid(getuid());
     home = account != NULL ? account->pw_dir : NULL;
     sambadancer_directory("SAMBADANCER_STORAGE", home,
-                          "Library/Preferences/com.ruinelson.sambadanser", settings);
+                          "Library/Preferences/com.ruinelson.sambadancer", settings);
     sambadancer_directory("SAMBADANCER_LOGS", home,
                           "Library/Logs/SambaDancer", logs);
     sambadancer_directory("SAMBADANCER_CACHES", home,
