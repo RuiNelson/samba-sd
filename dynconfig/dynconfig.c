@@ -126,9 +126,37 @@ static void sambadancer_set_path(
     const char *(*setter)(const char *))
 {
     char path[PATH_MAX];
-    int length = snprintf(path, sizeof(path), "%s/%s", base, suffix);
+    int length = suffix[0] == '\0'
+        ? snprintf(path, sizeof(path), "%s", base)
+        : snprintf(path, sizeof(path), "%s/%s", base, suffix);
     if (length > 0 && (size_t)length < sizeof(path)) {
         setter(path);
+    }
+}
+
+/* Resolve one storage directory: an absolute value of the named environment
+ * variable, otherwise the default below the user's home. Leaves an empty
+ * string when neither is usable. */
+static void sambadancer_directory(
+    const char *variable,
+    const char *home,
+    const char *fallback,
+    char result[PATH_MAX])
+{
+    const char *override = getenv(variable);
+    int length;
+
+    result[0] = '\0';
+    if (override != NULL && override[0] == '/' && strlen(override) < PATH_MAX) {
+        snprintf(result, PATH_MAX, "%s", override);
+        return;
+    }
+    if (home == NULL || home[0] != '/') {
+        return;
+    }
+    length = snprintf(result, PATH_MAX, "%s/%s", home, fallback);
+    if (length <= 0 || length >= PATH_MAX) {
+        result[0] = '\0';
     }
 }
 
@@ -138,9 +166,10 @@ static void __attribute__((constructor)) sambadancer_paths(void)
     char root[PATH_MAX];
     char candidate[PATH_MAX];
     char settings[PATH_MAX];
+    char logs[PATH_MAX];
+    char caches[PATH_MAX];
     struct passwd *account;
     const char *home;
-    const char *override;
     char *separator;
     int length;
 
@@ -173,35 +202,34 @@ static void __attribute__((constructor)) sambadancer_paths(void)
     sambadancer_set_path(root, "share/codepages", set_dyn_CODEPAGEDIR);
     sambadancer_set_path(root, "share/locale", set_dyn_LOCALEDIR);
 
-    /* The application states its storage directory explicitly. A server run
+    /* The application states its storage directories explicitly. A server run
      * as root by the privileged helper, and the samba-dcerpcd it spawns, must
-     * use the invoking user's directory rather than root's home. Absent the
-     * variable, fall back to the process owner's home. */
-    override = getenv("SAMBADANCER_STORAGE");
-    if (override != NULL && override[0] == '/' && strlen(override) < sizeof(settings)) {
-        snprintf(settings, sizeof(settings), "%s", override);
-    } else {
-        account = getpwuid(getuid());
-        home = account != NULL ? account->pw_dir : NULL;
-        if (home == NULL || home[0] != '/') {
-            return;
-        }
-        length = snprintf(settings, sizeof(settings), "%s/.config/SambaDancer", home);
-        if (length <= 0 || (size_t)length >= sizeof(settings)) {
-            return;
-        }
+     * use the invoking user's directories rather than root's home. Absent the
+     * variables, fall back to the standard macOS locations in the process
+     * owner's home: configuration and credentials in Application Support, logs
+     * in Logs, and disposable runtime files in Caches. */
+    account = getpwuid(getuid());
+    home = account != NULL ? account->pw_dir : NULL;
+    sambadancer_directory("SAMBADANCER_STORAGE", home,
+                          "Library/Application Support/SambaDancer", settings);
+    sambadancer_directory("SAMBADANCER_LOGS", home,
+                          "Library/Logs/SambaDancer", logs);
+    sambadancer_directory("SAMBADANCER_CACHES", home,
+                          "Library/Caches/SambaDancer", caches);
+    if (settings[0] == '\0' || logs[0] == '\0' || caches[0] == '\0') {
+        return;
     }
     sambadancer_set_path(settings, "smb.conf", set_dyn_CONFIGFILE);
     sambadancer_set_path(settings, "lmhosts", set_dyn_LMHOSTSFILE);
-    sambadancer_set_path(settings, "logs", set_dyn_LOGFILEBASE);
+    sambadancer_set_path(logs, "", set_dyn_LOGFILEBASE);
     sambadancer_set_path(settings, "private", set_dyn_PRIVATE_DIR);
     sambadancer_set_path(settings, "private/smbpasswd", set_dyn_SMB_PASSWD_FILE);
     sambadancer_set_path(settings, "state", set_dyn_STATEDIR);
-    sambadancer_set_path(settings, "cache", set_dyn_CACHEDIR);
-    sambadancer_set_path(settings, "run", set_dyn_LOCKDIR);
-    sambadancer_set_path(settings, "run", set_dyn_PIDDIR);
-    sambadancer_set_path(settings, "run/ncalrpc", set_dyn_NCALRPCDIR);
-    sambadancer_set_path(settings, "run/nmbd", set_dyn_NMBDSOCKETDIR);
-    sambadancer_set_path(settings, "run/winbindd", set_dyn_WINBINDD_SOCKET_DIR);
+    sambadancer_set_path(caches, "", set_dyn_CACHEDIR);
+    sambadancer_set_path(caches, "run", set_dyn_LOCKDIR);
+    sambadancer_set_path(caches, "run", set_dyn_PIDDIR);
+    sambadancer_set_path(caches, "run/ncalrpc", set_dyn_NCALRPCDIR);
+    sambadancer_set_path(caches, "run/nmbd", set_dyn_NMBDSOCKETDIR);
+    sambadancer_set_path(caches, "run/winbindd", set_dyn_WINBINDD_SOCKET_DIR);
 }
 #endif
