@@ -222,7 +222,14 @@ static void __attribute__((constructor)) sambadancer_paths(void)
     sambadancer_set_path(settings, "smb.conf", set_dyn_CONFIGFILE);
     sambadancer_set_path(settings, "lmhosts", set_dyn_LMHOSTSFILE);
     sambadancer_set_path(logs, "", set_dyn_LOGFILEBASE);
-    sambadancer_set_path(settings, "private", set_dyn_PRIVATE_DIR);
+    /* Optional member trust is separate from the standalone passdb and SID.
+     * Spawned RPC helpers inherit this fixed mode as well as the app paths;
+     * they do not inherit their parent's command-line --option overrides. */
+    sambadancer_set_path(settings,
+        getenv("CLICKSMB_DOMAIN_MEMBER") != NULL &&
+        strcmp(getenv("CLICKSMB_DOMAIN_MEMBER"), "1") == 0
+            ? "private/ActiveDirectory" : "private",
+        set_dyn_PRIVATE_DIR);
     sambadancer_set_path(settings, "private/smbpasswd", set_dyn_SMB_PASSWD_FILE);
     sambadancer_set_path(settings, "state", set_dyn_STATEDIR);
     sambadancer_set_path(caches, "", set_dyn_CACHEDIR);
