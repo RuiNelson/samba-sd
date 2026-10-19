@@ -1891,10 +1891,17 @@ static bool clicksmb_domain_user_allowed(const char *domain,
 	if (passwd->pw_uid == 0) {
 		return false;
 	}
-	/* Samba creates its internal local guest token at startup even when
-	 * guest access is disabled. Its local SAM SID is not an AD identity. */
+	/* Samba must construct its internal guest token at startup even with
+	 * guest access disabled. Limit this exception to that exact local token,
+	 * never another local SAM identity or a domain-supplied guest SID. */
 	if (sid_check_is_in_our_sam(sid)) {
-		return true;
+		uint32_t rid = 0;
+
+		return sid_peek_rid(sid, &rid) &&
+			rid == DOMAIN_RID_GUEST &&
+			strequal(domain, lp_netbios_name()) &&
+			strequal(username, lp_guest_account()) &&
+			strequal(passwd->pw_name, lp_guest_account());
 	}
 	if (!strequal(domain, lp_workgroup()) ||
 	    !strequal(username, passwd->pw_name) ||
