@@ -29,6 +29,11 @@
 #include "lib/util/dlinklist.h"
 #include <assert.h>
 
+#ifdef __APPLE__
+#include <limits.h>
+#include <pwd.h>
+#endif
+
 #ifdef HAVE_PTHREAD_H
 #include <pthread.h>
 #endif
@@ -578,7 +583,39 @@ static const char *winbindd_socket_dir(void)
 		}
 	}
 
+#ifdef __APPLE__
+	/* Match the daemon's Click SMB cache paths without depending on Samba's
+	 * GPL dynconfig library from this LGPL client library. The privileged
+	 * helper supplies the invoking user's fixed CLICKSMB_CACHES directory. */
+	{
+		static __thread char path[PATH_MAX];
+		const char *caches = getenv("CLICKSMB_CACHES");
+		struct passwd account;
+		struct passwd *result = NULL;
+		char buffer[16384];
+		int length;
+
+		if (caches != NULL && caches[0] == '/' &&
+		    strlen(caches) < PATH_MAX) {
+			length = snprintf(path, sizeof(path), "%s/run/winbindd",
+					  caches);
+		} else if (getpwuid_r(getuid(), &account, buffer,
+				     sizeof(buffer), &result) == 0 &&
+			   result != NULL && account.pw_dir[0] == '/') {
+			length = snprintf(path, sizeof(path),
+					  "%s/Library/Caches/ClickSMB/run/winbindd",
+					  account.pw_dir);
+		} else {
+			return "";
+		}
+		if (length <= 0 || (size_t)length >= sizeof(path)) {
+			return "";
+		}
+		return path;
+	}
+#else
 	return WINBINDD_SOCKET_DIR;
+#endif
 }
 
 /* Connect to winbindd socket */
