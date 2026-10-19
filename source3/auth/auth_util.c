@@ -1868,6 +1868,53 @@ const struct auth_session_info *get_session_info_system(void)
  Purely internal function for make_server_info_info3
 ***************************************************************************/
 
+/* Click SMB's opt-in domain policy is checked after identity resolution, not
+ * only in idmap_nss: a previously cached SID-to-UID mapping must not admit a
+ * deselected account. Keep the PAC/group token intact. Absent the parameter,
+ * preserve upstream behaviour, including standalone authentication. */
+static bool clicksmb_domain_user_allowed(const char *domain,
+					const char *username,
+					const struct dom_sid *sid,
+					const struct passwd *passwd)
+{
+	const char *configured = NULL;
+	const char **allowed = NULL;
+	size_t i;
+
+	if (lp_security() != SEC_ADS) {
+		return true;
+	}
+	configured = lp_parm_const_string(-1, "clicksmb", "domain users", NULL);
+	if (configured == NULL) {
+		return true;
+	}
+	if (passwd->pw_uid == 0) {
+		return false;
+	}
+	/* Samba creates its internal local guest token at startup even when
+	 * guest access is disabled. Its local SAM SID is not an AD identity. */
+	if (sid_check_is_in_our_sam(sid)) {
+		return true;
+	}
+	if (!strequal(domain, lp_workgroup()) ||
+	    !strequal(username, passwd->pw_name) ||
+	    passwd->pw_name[0] == '_' ||
+	    strequal(passwd->pw_name, "root") ||
+	    strequal(passwd->pw_name, "daemon") ||
+	    strequal(passwd->pw_name, "nobody")) {
+		return false;
+	}
+	allowed = lp_parm_string_list(-1, "clicksmb", "domain users", NULL);
+	if (allowed != NULL) {
+		for (i = 0; allowed[i] != NULL; i++) {
+			if (strequal(allowed[i], passwd->pw_name)) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 static NTSTATUS check_account(TALLOC_CTX *mem_ctx, const char *domain,
 			      const char *username,
 			      const struct dom_sid *sid,
@@ -1936,6 +1983,13 @@ static NTSTATUS check_account(TALLOC_CTX *mem_ctx, const char *domain,
 
 	if (!real_username) {
 		return NT_STATUS_NO_MEMORY;
+	}
+
+	if (!clicksmb_domain_user_allowed(domain, username, sid, passwd)) {
+		DBG_NOTICE("The authenticated domain identity is not enabled for Click SMB.\n");
+		/* Do not return NO_SUCH_USER: Bad Uid guest fallback must not turn
+		 * a policy rejection into access under a different identity. */
+		return NT_STATUS_LOGON_FAILURE;
 	}
 
 	*pwd = passwd;

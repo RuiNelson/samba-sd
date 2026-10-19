@@ -105,6 +105,7 @@ def options(opt):
     opt.samba_add_onoff_option('wsp', with_name="enable", without_name="disable", default=True)
 
 def configure(conf):
+    conf.DEFINE('HAVE_CLICKSMB_DOMAIN_USER_POLICY', 1)
     default_static_modules = []
     default_shared_modules = []
     required_static_modules = []
