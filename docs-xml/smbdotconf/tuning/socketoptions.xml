@@ -24,11 +24,12 @@
     to be used when talking with the client.</para>
 
     <para>On macOS, the Click SMB fork defaults to
-    <literal>TCP_NODELAY SO_KEEPALIVE TCP_KEEPIDLE=30 TCP_KEEPINTVL=10 TCP_KEEPCNT=3</literal>.
+    <literal>TCP_NODELAY SO_KEEPALIVE TCP_KEEPIDLE=30 TCP_KEEPINTVL=10 TCP_KEEPCNT=3 TCP_RXT_CONNDROPTIME=60</literal>.
     The idle time is mapped to macOS's per-socket <literal>TCP_KEEPALIVE</literal>
     option. An unreachable client is detected after approximately one minute
     without a response; a healthy idle client continues responding to these TCP
-    probes. This changes only this Samba runtime's socket defaults, never the
+    probes. The retransmission timeout also bounds retries of unacknowledged
+    data to 60 seconds. This changes only this Samba runtime's socket defaults, never the
     operating system's global network settings. An explicit value replaces this
     default.</para>
 
@@ -65,6 +66,7 @@
 	<listitem><para>TCP_KEEPCNT *</para></listitem>
 	<listitem><para>TCP_KEEPIDLE *</para></listitem>
 	<listitem><para>TCP_KEEPINTVL *</para></listitem>
+	<listitem><para>TCP_RXT_CONNDROPTIME * (macOS)</para></listitem>
     	<listitem><para>IPTOS_LOWDELAY</para></listitem>
     	<listitem><para>IPTOS_THROUGHPUT</para></listitem>
 	<listitem><para>SO_REUSEPORT</para></listitem>

@@ -645,7 +645,7 @@ void loadparm_s3_init_globals(struct loadparm_context *lp_ctx,
 	 * A saved explicit socket options value remains authoritative. */
 	lpcfg_string_set(Globals.ctx, &Globals.socket_options,
 			 DEFAULT_SOCKET_OPTIONS " SO_KEEPALIVE TCP_KEEPIDLE=30"
-			 " TCP_KEEPINTVL=10 TCP_KEEPCNT=3");
+			 " TCP_KEEPINTVL=10 TCP_KEEPCNT=3 TCP_RXT_CONNDROPTIME=60");
 #else
 	lpcfg_string_set(Globals.ctx, &Globals.socket_options,
 			 DEFAULT_SOCKET_OPTIONS);
