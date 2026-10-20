@@ -34,6 +34,7 @@
 		<arg choice="opt">-j|--json</arg>
 		<arg choice="opt">--resolve-uids</arg>
 		<arg choice="opt">--watch-users</arg>
+		<arg choice="opt">--watch-stats</arg>
 		<arg choice="opt">-?|--help</arg>
 		<arg choice="opt">--usage</arg>
 		<arg choice="opt">-d|--debuglevel=DEBUGLEVEL</arg>
@@ -60,6 +61,18 @@
 	<title>OPTIONS</title>
 
 	<variablelist>
+		<varlistentry>
+		<term>--watch-stats</term>
+		<listitem><para>Like --watch-users, also stream cumulative SMB2/3 file
+		payload totals as decimal strings in <literal>uploaded_bytes</literal>
+		and <literal>downloaded_bytes</literal>. The server counts successful
+		file reads and writes, including alternate streams and sendfile reads,
+		across all connections. Named pipes, protocol overhead and server-side
+		copies are excluded. Shared atomic counters start at zero with smbd,
+		keep counting without observers and retain completed operations after
+		a worker exits. Activity notifications are coalesced for 250 milliseconds;
+		there is no idle polling. Closing standard input ends the stream.</para></listitem>
+		</varlistentry>
 		<varlistentry>
 		<term>--watch-users</term>
 		<listitem><para>Stream an initial unique connected username count,

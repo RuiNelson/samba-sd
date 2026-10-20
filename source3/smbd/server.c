@@ -29,6 +29,7 @@
 #include "locking/share_mode_lock.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "smbd/transfer_stats.h"
 #include "source3/smbd/smbXsrv_session.h"
 #include "smbd/smbXsrv_open.h"
 #include "registry/reg_init_full.h"
@@ -1099,6 +1100,7 @@ static void remove_child_pid(struct smbd_parent_context *parent,
 	/* Also refresh observers after an unclean worker exit: stale session
 	 * records are filtered by process liveness in smbstatus. */
 	messaging_notify_session_change(parent->msg_ctx);
+	smbd_transfer_flush(parent->msg_ctx);
 
 	if (pid == procid_to_pid(&parent->cleanupd)) {
 		struct tevent_req *req;
@@ -2505,6 +2507,9 @@ extern void build_options(bool screen);
 	parent->ev_ctx = ev_ctx;
 	parent->msg_ctx = msg_ctx;
 	am_parent = parent;
+	if (!smbd_transfer_stats_init(msg_ctx)) {
+		exit_server("Cannot initialize SMB transfer counters");
+	}
 
 	if (ports != NULL) {
 		const char **ts = NULL;

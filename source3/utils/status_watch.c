@@ -5,6 +5,7 @@
 #include "session.h"
 #include "serverid.h"
 #include "lib/util/server_id_db.h"
+#include "lib/util/server_id.h"
 #include "status_watch.h"
 
 struct users_watch {
@@ -12,6 +13,10 @@ struct users_watch {
 	struct tevent_immediate *refresh;
 	bool pending, done, failed, have_count;
 	size_t last_count;
+	bool transfers, have_users, have_transfers;
+	struct server_id parent;
+	size_t count;
+	uint64_t uploaded, downloaded, last_uploaded, last_downloaded;
 };
 
 struct users_snapshot {
@@ -52,6 +57,47 @@ static int compare_names(const void *a, const void *b)
 	return strcmp(*(const char * const *)a, *(const char * const *)b);
 }
 
+static void emit_update(struct users_watch *watch)
+{
+	int result;
+	if (!watch->have_users || (watch->transfers && !watch->have_transfers)) {
+		return;
+	}
+	if (watch->have_count && watch->count == watch->last_count &&
+	    watch->uploaded == watch->last_uploaded &&
+	    watch->downloaded == watch->last_downloaded) {
+		return;
+	}
+	if (watch->transfers) {
+		result = printf("{\"count\":%zu,\"uploaded_bytes\":\"%"PRIu64"\","
+				"\"downloaded_bytes\":\"%"PRIu64"\",\"error\":null}\n",
+				watch->count, watch->uploaded, watch->downloaded);
+	} else {
+		result = printf("{\"count\":%zu,\"error\":null}\n", watch->count);
+	}
+	if (result < 0 || fflush(stdout) != 0) {
+		watch->done = watch->failed = true;
+	}
+	watch->last_count = watch->count;
+	watch->last_uploaded = watch->uploaded;
+	watch->last_downloaded = watch->downloaded;
+	watch->have_count = true;
+}
+
+static void transfers_changed(struct messaging_context *msg, void *data,
+			       uint32_t type, struct server_id source,
+			       DATA_BLOB *payload)
+{
+	struct users_watch *watch = data;
+	if (!server_id_equal(&watch->parent, &source) || payload->length != 16) {
+		return;
+	}
+	watch->uploaded = MAX(watch->uploaded, BVAL(payload->data, 0));
+	watch->downloaded = MAX(watch->downloaded, BVAL(payload->data, 8));
+	watch->have_transfers = true;
+	emit_update(watch);
+}
+
 static void refresh_users(struct tevent_context *ev,
 			  struct tevent_immediate *im, void *data)
 {
@@ -81,14 +127,9 @@ static void refresh_users(struct tevent_context *ev,
 			count++;
 		}
 	}
-	if (!watch->have_count || count != watch->last_count) {
-		if (printf("{\"count\":%zu,\"error\":null}\n", count) < 0 ||
-		    fflush(stdout) != 0) {
-			watch->done = watch->failed = true;
-		}
-		watch->last_count = count;
-		watch->have_count = true;
-	}
+	watch->count = count;
+	watch->have_users = true;
+	emit_update(watch);
 	TALLOC_FREE(snapshot);
 }
 
@@ -114,7 +155,7 @@ static void input_ready(struct tevent_context *ev, struct tevent_fd *fde,
 	}
 }
 
-int status_watch_users(struct messaging_context *msg_ctx)
+int status_watch_users(struct messaging_context *msg_ctx, bool transfers)
 {
 	struct tevent_context *ev = messaging_tevent_context(msg_ctx);
 	struct server_id_db *names = messaging_names_db(msg_ctx);
@@ -126,6 +167,7 @@ int status_watch_users(struct messaging_context *msg_ctx)
 		return 1;
 	}
 	watch->msg = msg_ctx;
+	watch->transfers = transfers;
 	watch->refresh = tevent_create_immediate(watch);
 	if (watch->refresh == NULL ||
 	    tevent_add_fd(ev, watch, STDIN_FILENO, TEVENT_FD_READ,
@@ -137,6 +179,23 @@ int status_watch_users(struct messaging_context *msg_ctx)
 	if (!NT_STATUS_IS_OK(status) ||
 	    server_id_db_add(names, SMBSTATUS_USERS_WATCH_NAME) != 0) {
 		goto done;
+	}
+	if (transfers) {
+		if (!server_id_db_lookup_one(names, SMBD_TRANSFER_STATS_NAME,
+					     &watch->parent)) {
+			fprintf(stderr, "Cannot find the SMB transfer counters\n");
+			goto done;
+		}
+		status = messaging_register(msg_ctx, watch, MSG_SMBXSRV_TRANSFER_STATS,
+					    transfers_changed);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto done;
+		}
+		status = messaging_send_buf(msg_ctx, watch->parent,
+					    MSG_SMBXSRV_TRANSFER_STATS, NULL, 0);
+		if (!NT_STATUS_IS_OK(status)) {
+			goto done;
+		}
 	}
 	/* Subscribe before reading, so a concurrent logon cannot be missed. */
 	refresh_users(ev, NULL, watch);
@@ -150,6 +209,7 @@ int status_watch_users(struct messaging_context *msg_ctx)
 done:
 	server_id_db_remove(names, SMBSTATUS_USERS_WATCH_NAME);
 	messaging_deregister(msg_ctx, MSG_SMBXSRV_SESSION_CHANGED, watch);
+	messaging_deregister(msg_ctx, MSG_SMBXSRV_TRANSFER_STATS, watch);
 	TALLOC_FREE(watch);
 	return result;
 }

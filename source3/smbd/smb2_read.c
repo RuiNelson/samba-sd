@@ -22,6 +22,7 @@
 #include "system/filesys.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "smbd/transfer_stats.h"
 #include "../libcli/smb/smb_common.h"
 #include "libcli/security/security.h"
 #include "../lib/util/tevent_ntstatus.h"
@@ -332,6 +333,7 @@ normal_read:
 		}
 	}
 
+	smbd_transfer_record(fsp->conn->sconn->msg_ctx, 0, in_length);
 	*pstatus = NT_STATUS_OK;
 	return 0;
 }
@@ -425,6 +427,7 @@ NTSTATUS smb2_read_complete(struct tevent_req *req, ssize_t nread, int err)
 
 	state->out_data.length = nread;
 	state->out_remaining = 0;
+	smbd_transfer_record(fsp->conn->sconn->msg_ctx, 0, nread);
 
 	return NT_STATUS_OK;
 }

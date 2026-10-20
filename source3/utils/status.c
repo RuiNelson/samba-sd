@@ -1038,6 +1038,7 @@ static bool print_notify_rec(const char *path, struct server_id server,
 enum {
 	OPT_RESOLVE_UIDS = 1000,
 	OPT_WATCH_USERS,
+	OPT_WATCH_STATS,
 };
 
 int main(int argc, const char *argv[])
@@ -1047,10 +1048,17 @@ int main(int argc, const char *argv[])
 	bool show_processes, show_locks, show_shares;
 	bool show_notify = false;
 	bool watch_users = false;
+	bool watch_stats = false;
 	poptContext pc = NULL;
 	struct traverse_state state = {0};
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
+		{
+			.longName = "watch-stats",
+			.argInfo = POPT_ARG_NONE,
+			.val = OPT_WATCH_STATS,
+			.descrip = "Stream connected user counts and SMB2/3 file payload totals until standard input closes",
+		},
 		{
 			.longName = "watch-users",
 			.argInfo = POPT_ARG_NONE,
@@ -1209,6 +1217,9 @@ int main(int argc, const char *argv[])
 
 	while ((c = poptGetNextOpt(pc)) != -1) {
 		switch (c) {
+		case OPT_WATCH_STATS:
+			watch_stats = true;
+			break;
 		case OPT_WATCH_USERS:
 			watch_users = true;
 			break;
@@ -1282,7 +1293,7 @@ int main(int argc, const char *argv[])
 
 	/* Count-only watching may also observe a same-user server. Database and
 	 * messaging permissions still enforce access; never allow setuid use. */
-	if (getuid() != 0 && !watch_users) {
+	if (getuid() != 0 && !watch_users && !watch_stats) {
 		fprintf(stderr, "smbstatus only works as root!\n");
 		ret = 1;
 		goto done;
@@ -1307,14 +1318,15 @@ int main(int argc, const char *argv[])
 		ret = -1;
 		goto done;
 	}
-	if (watch_users) {
+	if (watch_users || watch_stats) {
 		if (processes_only || shares_only || locks_only || profile_only ||
-		    show_notify || state.json_output || username != NULL || !do_checks) {
-			fprintf(stderr, "--watch-users cannot be combined with other status modes\n");
+		    show_notify || state.json_output || username != NULL || !do_checks ||
+		    (watch_users && watch_stats)) {
+			fprintf(stderr, "Watch options cannot be combined with other status modes\n");
 			ret = 1;
 			goto done;
 		}
-		ret = status_watch_users(msg_ctx);
+		ret = status_watch_users(msg_ctx, watch_stats);
 		goto done;
 	}
 

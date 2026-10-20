@@ -21,6 +21,7 @@
 #include "includes.h"
 #include "smbd/smbd.h"
 #include "smbd/globals.h"
+#include "smbd/transfer_stats.h"
 #include "../libcli/smb/smb_common.h"
 #include "../lib/util/tevent_ntstatus.h"
 #include "rpc_server/srv_pipe_hnd.h"
@@ -236,6 +237,7 @@ static NTSTATUS smb2_write_complete_internal(struct tevent_req *req,
 	}
 
 	state->out_count = nwritten;
+	smbd_transfer_record(fsp->conn->sconn->msg_ctx, nwritten, 0);
 
 	return NT_STATUS_OK;
 }

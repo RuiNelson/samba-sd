@@ -701,6 +701,7 @@ bld.SAMBA3_LIBRARY('smbd_base',
                           smbd/smb2_close.c
                           smbd/smb2_flush.c
                           smbd/smb2_read.c
+                          smbd/transfer_stats.c
                           smbd/smb2_write.c
                           smbd/smb2_lock.c
                           smbd/smb2_ioctl.c

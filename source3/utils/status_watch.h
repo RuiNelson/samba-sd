@@ -3,6 +3,6 @@
 #define SMBSTATUS_WATCH_H
 
 struct messaging_context;
-int status_watch_users(struct messaging_context *msg_ctx);
+int status_watch_users(struct messaging_context *msg_ctx, bool transfers);
 
 #endif
