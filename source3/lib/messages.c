@@ -1050,6 +1050,31 @@ struct send_all_state {
 	size_t len;
 };
 
+void messaging_notify_session_change(struct messaging_context *msg_ctx)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct server_id_db *names = messaging_names_db(msg_ctx);
+	struct server_id *subscribers = NULL;
+	unsigned count = 0, i;
+	int ret;
+
+	ret = server_id_db_lookup(names, SMBSTATUS_USERS_WATCH_NAME,
+				 frame, &count, &subscribers);
+	if (ret == 0) {
+		for (i = 0; i < count; i++) {
+			NTSTATUS status = messaging_send_buf(msg_ctx,
+					 subscribers[i],
+					 MSG_SMBXSRV_SESSION_CHANGED, NULL, 0);
+			if (!NT_STATUS_IS_OK(status) &&
+			    !serverid_exists(&subscribers[i])) {
+				server_id_db_prune_name(names,
+					SMBSTATUS_USERS_WATCH_NAME, subscribers[i]);
+			}
+		}
+	}
+	TALLOC_FREE(frame);
+}
+
 static int send_all_fn(pid_t pid, void *private_data)
 {
 	struct send_all_state *state = private_data;

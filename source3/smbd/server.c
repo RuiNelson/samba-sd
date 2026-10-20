@@ -1096,6 +1096,9 @@ static void remove_child_pid(struct smbd_parent_context *parent,
 		DBG_WARNING("Ignoring exit of child %d\n", pid);
 		return;
 	}
+	/* Also refresh observers after an unclean worker exit: stale session
+	 * records are filtered by process liveness in smbstatus. */
+	messaging_notify_session_change(parent->msg_ctx);
 
 	if (pid == procid_to_pid(&parent->cleanupd)) {
 		struct tevent_req *req;

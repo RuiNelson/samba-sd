@@ -56,6 +56,10 @@ struct tevent_context *messaging_tevent_context(
 	struct messaging_context *msg_ctx);
 struct server_id_db *messaging_names_db(struct messaging_context *msg_ctx);
 
+/* Optional smbstatus subscribers in this runtime's messaging namespace. */
+#define SMBSTATUS_USERS_WATCH_NAME "smbstatus-users-watch"
+void messaging_notify_session_change(struct messaging_context *msg_ctx);
+
 /*
  * re-init after a fork
  */

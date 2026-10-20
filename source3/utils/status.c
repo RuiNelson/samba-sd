@@ -49,6 +49,7 @@
 #include "serverid.h"
 #include "status_profile.h"
 #include "status.h"
+#include "status_watch.h"
 #include "status_json.h"
 #include "smbd/notifyd/notifyd_db.h"
 #include "cmdline_contexts.h"
@@ -1036,6 +1037,7 @@ static bool print_notify_rec(const char *path, struct server_id server,
 
 enum {
 	OPT_RESOLVE_UIDS = 1000,
+	OPT_WATCH_USERS,
 };
 
 int main(int argc, const char *argv[])
@@ -1044,10 +1046,17 @@ int main(int argc, const char *argv[])
 	int profile_only = 0;
 	bool show_processes, show_locks, show_shares;
 	bool show_notify = false;
+	bool watch_users = false;
 	poptContext pc = NULL;
 	struct traverse_state state = {0};
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
+		{
+			.longName = "watch-users",
+			.argInfo = POPT_ARG_NONE,
+			.val = OPT_WATCH_USERS,
+			.descrip = "Stream the unique connected user count on session changes until standard input closes",
+		},
 		{
 			.longName   = "processes",
 			.shortName  = 'p',
@@ -1200,6 +1209,9 @@ int main(int argc, const char *argv[])
 
 	while ((c = poptGetNextOpt(pc)) != -1) {
 		switch (c) {
+		case OPT_WATCH_USERS:
+			watch_users = true;
+			break;
 		case 'p':
 			processes_only = true;
 			break;
@@ -1268,7 +1280,9 @@ int main(int argc, const char *argv[])
 		goto done;
 	}
 
-	if (getuid() != 0) {
+	/* Count-only watching may also observe a same-user server. Database and
+	 * messaging permissions still enforce access; never allow setuid use. */
+	if (getuid() != 0 && !watch_users) {
 		fprintf(stderr, "smbstatus only works as root!\n");
 		ret = 1;
 		goto done;
@@ -1291,6 +1305,16 @@ int main(int argc, const char *argv[])
 	if (msg_ctx == NULL) {
 		fprintf(stderr, "Could not initialize messaging, not root?\n");
 		ret = -1;
+		goto done;
+	}
+	if (watch_users) {
+		if (processes_only || shares_only || locks_only || profile_only ||
+		    show_notify || state.json_output || username != NULL || !do_checks) {
+			fprintf(stderr, "--watch-users cannot be combined with other status modes\n");
+			ret = 1;
+			goto done;
+		}
+		ret = status_watch_users(msg_ctx);
 		goto done;
 	}
 

@@ -33,6 +33,7 @@
 		<arg choice="opt">-f|--fast</arg>
 		<arg choice="opt">-j|--json</arg>
 		<arg choice="opt">--resolve-uids</arg>
+		<arg choice="opt">--watch-users</arg>
 		<arg choice="opt">-?|--help</arg>
 		<arg choice="opt">--usage</arg>
 		<arg choice="opt">-d|--debuglevel=DEBUGLEVEL</arg>
@@ -59,6 +60,18 @@
 	<title>OPTIONS</title>
 
 	<variablelist>
+		<varlistentry>
+		<term>--watch-users</term>
+		<listitem><para>Stream an initial unique connected username count,
+		then a new count whenever session notifications change it. Each line
+		is a JSON object with a numeric <literal>count</literal> and a null
+		<literal>error</literal>. Logins still being authenticated are excluded.
+		The process waits in Samba's event loop and exits when standard input
+		closes. No interval-based rescanning is performed. This count-only mode
+		can also observe a server running as the invoking user, subject to the
+		runtime database and messaging permissions. It cannot be combined with
+		other status modes.</para></listitem>
+		</varlistentry>
 		<varlistentry>
 		<term>-P|--profile</term>
 		<listitem><para>If samba has been compiled with the

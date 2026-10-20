@@ -971,6 +971,7 @@ static NTSTATUS smbXsrv_session_global_store(struct smbXsrv_session_global *glob
 
 	TALLOC_FREE(global->db_rec);
 
+	messaging_notify_session_change(global_messaging_context());
 	return NT_STATUS_OK;
 }
 
@@ -1934,6 +1935,7 @@ NTSTATUS smbXsrv_session_logoff(struct smbXsrv_session *session)
 		}
 	}
 	TALLOC_FREE(global_rec);
+	messaging_notify_session_change(sconn->msg_ctx);
 
 	local_rec = session->db_rec;
 	if (local_rec == NULL) {
