@@ -939,6 +939,9 @@ static const smb_socket_option socket_options[] = {
 #endif
 #ifdef TCP_KEEPIDLE
   {"TCP_KEEPIDLE", IPPROTO_TCP, TCP_KEEPIDLE, 0, OPT_INT},
+#elif defined(TCP_KEEPALIVE)
+  /* macOS names the per-socket idle time TCP_KEEPALIVE (also in seconds). */
+  {"TCP_KEEPIDLE", IPPROTO_TCP, TCP_KEEPALIVE, 0, OPT_INT},
 #endif
 #ifdef TCP_KEEPINTVL
   {"TCP_KEEPINTVL", IPPROTO_TCP, TCP_KEEPINTVL, 0, OPT_INT},

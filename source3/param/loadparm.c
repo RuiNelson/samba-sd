@@ -639,8 +639,17 @@ void loadparm_s3_init_globals(struct loadparm_context *lp_ctx,
 			 "/bin/sleep 999999999");
 #endif
 
+#ifdef __APPLE__
+	/* Detect a client that vanishes without FIN/RST in roughly one minute.
+	 * These are socket-local defaults, never system-wide TCP settings.
+	 * A saved explicit socket options value remains authoritative. */
+	lpcfg_string_set(Globals.ctx, &Globals.socket_options,
+			 DEFAULT_SOCKET_OPTIONS " SO_KEEPALIVE TCP_KEEPIDLE=30"
+			 " TCP_KEEPINTVL=10 TCP_KEEPCNT=3");
+#else
 	lpcfg_string_set(Globals.ctx, &Globals.socket_options,
 			 DEFAULT_SOCKET_OPTIONS);
+#endif
 
 	lpcfg_string_set(Globals.ctx, &Globals.logon_drive, "");
 	/* %N is the NIS auto.home server if -DAUTOHOME is used, else same as %L */

@@ -23,6 +23,15 @@
     <para>This option allows you to set socket options 
     to be used when talking with the client.</para>
 
+    <para>On macOS, the Click SMB fork defaults to
+    <literal>TCP_NODELAY SO_KEEPALIVE TCP_KEEPIDLE=30 TCP_KEEPINTVL=10 TCP_KEEPCNT=3</literal>.
+    The idle time is mapped to macOS's per-socket <literal>TCP_KEEPALIVE</literal>
+    option. An unreachable client is detected after approximately one minute
+    without a response; a healthy idle client continues responding to these TCP
+    probes. This changes only this Samba runtime's socket defaults, never the
+    operating system's global network settings. An explicit value replaces this
+    default.</para>
+
     <para>Socket options are controls on the networking layer 
     of the operating systems which allow the connection to be 
     tuned.</para>

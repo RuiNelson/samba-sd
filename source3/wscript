@@ -107,6 +107,7 @@ def options(opt):
 def configure(conf):
     conf.DEFINE('HAVE_CLICKSMB_DOMAIN_USER_POLICY', 1)
     conf.DEFINE('HAVE_CLICKSMB_DOMAIN_PRIVATE', 1)
+    conf.DEFINE('HAVE_CLICKSMB_TCP_KEEPALIVE', 1)
     default_static_modules = []
     default_shared_modules = []
     required_static_modules = []
