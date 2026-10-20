@@ -400,6 +400,7 @@ ssize_t sys_sendfile(int tofd, int fromfd, const DATA_BLOB *header, off_t offset
 ssize_t sys_sendfile(int tofd, int fromfd,
 	    const DATA_BLOB *header, off_t offset, size_t count)
 {
+	size_t requested = count;
 	struct sf_hdtr	sf_header = {0};
 	struct iovec	io_header = {0};
 	int old_flags = 0;
@@ -473,7 +474,9 @@ ssize_t sys_sendfile(int tofd, int fromfd,
 		count -= nwritten;
 	}
 
-	ret = nwritten;
+	/* The header and payload may need multiple calls (notably on Darwin).
+	 * Return all payload bytes sent, rather than just the final chunk. */
+	ret = requested - count;
 
   out:
 
