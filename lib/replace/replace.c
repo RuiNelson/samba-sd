@@ -1366,6 +1366,13 @@ int rep_renameat2(int __oldfd, const char *__old, int __newfd,
 		  const char *__new, unsigned int __flags)
 {
 	if (__flags != 0) {
+#if defined(HAVE_RENAMEATX_NP) && !defined(DISABLE_OPATH)
+		/* Darwin provides atomic no-replace renames under another name. */
+		if (__flags == RENAME_NOREPLACE) {
+			return renameatx_np(__oldfd, __old, __newfd, __new,
+					    RENAME_EXCL);
+		}
+#endif
 #ifdef __NR_renameat2
 		int ret;
 

@@ -1130,6 +1130,100 @@ static bool test_closefrom(void)
 	return true;
 }
 
+static bool test_renameat2_noreplace(void)
+{
+#if defined(HAVE_RENAMEATX_NP) && !defined(DISABLE_OPATH)
+	char directory[] = "renameat2.XXXXXX";
+	struct stat source_st;
+	struct stat target_st;
+	struct stat st;
+	const char *failure = NULL;
+	int dirfd = -1;
+	int ret;
+
+	printf("test: renameat2_noreplace\n");
+	if (mkdtemp(directory) == NULL) {
+		failure = "mkdtemp failed";
+		goto done;
+	}
+	dirfd = open(directory, O_RDONLY | O_DIRECTORY);
+	if (dirfd == -1) {
+		failure = "open directory failed";
+		goto done;
+	}
+	if (mkdirat(dirfd, "source", 0755) != 0 ||
+	    fstatat(dirfd, "source", &source_st, 0) != 0) {
+		failure = "create source directory failed";
+		goto done;
+	}
+	ret = renameat2(dirfd, "source", dirfd, "target", RENAME_NOREPLACE);
+	if (ret != 0) {
+		failure = "no-replace rename to an absent destination failed";
+		goto done;
+	}
+	if (fstatat(dirfd, "target", &target_st, 0) != 0 ||
+	    source_st.st_ino != target_st.st_ino ||
+	    source_st.st_mode != target_st.st_mode) {
+		failure = "rename did not preserve the directory and its mode";
+		goto done;
+	}
+	if (mkdirat(dirfd, "source", 0700) != 0 ||
+	    fstatat(dirfd, "source", &source_st, 0) != 0 ||
+	    fchmodat(dirfd, "target", 0, 0) != 0) {
+		failure = "prepare existing destination failed";
+		goto done;
+	}
+	ret = renameat2(dirfd, "source", dirfd, "target", RENAME_NOREPLACE);
+	if (ret != -1 || errno != EEXIST ||
+	    fstatat(dirfd, "source", &st, 0) != 0 ||
+	    st.st_ino != source_st.st_ino ||
+	    fstatat(dirfd, "target", &st, 0) != 0 ||
+	    st.st_ino != target_st.st_ino || (st.st_mode & 0777) != 0) {
+		failure = "no-replace rename changed an existing directory";
+		goto done;
+	}
+	if (symlinkat("target", dirfd, "link") != 0) {
+		failure = "create destination symlink failed";
+		goto done;
+	}
+	ret = renameat2(dirfd, "source", dirfd, "link", RENAME_NOREPLACE);
+	if (ret != -1 || errno != EEXIST ||
+	    fstatat(dirfd, "link", &st, AT_SYMLINK_NOFOLLOW) != 0 ||
+	    !S_ISLNK(st.st_mode)) {
+		failure = "no-replace rename changed an existing symlink";
+		goto done;
+	}
+	ret = renameat2(dirfd, "source", dirfd, "target",
+			RENAME_NOREPLACE | RENAME_WHITEOUT);
+	if (ret != -1 || errno != EINVAL) {
+		failure = "unsupported rename flags were not rejected";
+		goto done;
+	}
+	if (fchmodat(dirfd, "target", 0700, 0) != 0 ||
+	    renameat2(dirfd, "source", dirfd, "target", 0) != 0 ||
+	    fstatat(dirfd, "target", &st, 0) != 0 ||
+	    st.st_ino != source_st.st_ino) {
+		failure = "ordinary replacement rename failed";
+		goto done;
+	}
+
+done:
+	if (dirfd != -1) {
+		unlinkat(dirfd, "link", 0);
+		unlinkat(dirfd, "source", AT_REMOVEDIR);
+		unlinkat(dirfd, "target", AT_REMOVEDIR);
+		close(dirfd);
+	}
+	rmdir(directory);
+	if (failure != NULL) {
+		printf("failure: renameat2_noreplace [\n%s\n]\n", failure);
+		return false;
+	}
+	printf("success: renameat2_noreplace\n");
+#endif
+	return true;
+}
+
 static bool test_array_del_element(void)
 {
 	int a[] = { 1,2,3,4,5 };
@@ -1220,6 +1314,7 @@ bool torture_local_replace(struct torture_context *ctx)
 	ret &= test_utimes();
 	ret &= test_memmem();
 	ret &= test_closefrom();
+	ret &= test_renameat2_noreplace();
 	ret &= test_array_del_element();
 
 	return ret;
